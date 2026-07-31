@@ -156,6 +156,8 @@ function runtimeCandidates(project) {
     { label: "Claude", parent: join(base, ".claude"), skills: join(base, ".claude", "skills") },
     { label: "Codex", parent: join(base, ".codex"), skills: join(base, ".codex", "skills") },
     { label: "OpenCode", parent: opencodeParent, skills: join(opencodeParent, "skills") },
+    { label: "Cursor", parent: join(base, ".cursor"), skills: join(base, ".cursor", "skills") },
+    { label: "Pi", parent: join(base, ".pi", "agent"), skills: join(base, ".pi", "agent", "skills") },
   ];
 }
 
@@ -264,7 +266,7 @@ export async function runSetup({ assumeYes = false, symlink = false, project = f
 
   if (!detected.length) {
     die(
-      "setup: no agent config directories detected (looked for ~/.claude, ~/.codex, ~/.config/opencode).\n" +
+      "setup: no agent config directories detected (looked for ~/.claude, ~/.codex, ~/.config/opencode, ~/.cursor, ~/.pi/agent).\n" +
         "setup: create one, or use --project to install into this project, then re-run."
     );
   }
