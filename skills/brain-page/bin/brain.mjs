@@ -25,11 +25,14 @@
 //   archive-page    --id [--reversal-summary]
 //   set-tags        --id --tags
 //   update-root     <slug>          (body read from stdin)
-//   wire            --agent <claude-code|codex|opencode|cursor|pi>   (wire CLAUDE.md / AGENTS.md to the brain)
+//   wire            [--agent <claude-code|codex|opencode|cursor|pi|all>]
+//                   (default: wire CLAUDE.md + AGENTS.md)
+//   init            [--no-wire] [--agent …]   scaffold BRAIN.md + brain/ + default wire
 //   reindex | lint-links
 
-import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, readFileSync, readdirSync, mkdirSync, cpSync } from "node:fs";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   ROOT,
   BRAIN_DIR,
@@ -56,6 +59,13 @@ import {
   reindexBrain,
   lintBrainLinks,
 } from "../lib/brain.mjs";
+
+/** Directory of this CLI binary (…/skills/brain-page/bin). */
+const CLI_DIR = dirname(fileURLToPath(import.meta.url));
+/** skills/ directory that holds all skill bundles (sibling of brain-page). */
+const SKILLS_ROOT = join(CLI_DIR, "..", "..");
+/** Scaffold templates shipped with brain-setup. */
+const SETUP_ASSETS = join(SKILLS_ROOT, "brain-setup", "assets");
 
 // ---- argument parsing -------------------------------------------------------
 
@@ -98,7 +108,7 @@ async function readStdin() {
 }
 
 function ensureBrainExists() {
-  if (!existsSync(BRAIN_DIR)) fail(`no brain directory found at ${BRAIN_DIR} — run the brain-setup skill first`);
+  if (!existsSync(BRAIN_DIR)) fail(`no brain directory found at ${BRAIN_DIR} — run brain init (or the brain-setup skill) first`);
 }
 
 // ---- subcommands ------------------------------------------------------------
@@ -376,29 +386,30 @@ const WIRE_AGENTS = {
   "cursor": "AGENTS.md",
   "pi": "AGENTS.md",
 };
+/** Default wire set: one writer per config file (CLAUDE.md + AGENTS.md). */
+const DEFAULT_WIRE_AGENTS = ["claude-code", "codex"];
 const WIRE_BEGIN = "<!-- BEGIN brain.md -->";
 const WIRE_END = "<!-- END brain.md -->";
 
-// The unified, neutral, self-contained brain block. Every agent gets byte-for-byte
-// the same body; the ONLY difference is that claude-code additionally carries an
-// `@import ./BRAIN.md` line (an @import is Claude Code-specific syntax — the other
-// agents, which read AGENTS.md, do not understand it, so their block relies on the
-// plain "read ./BRAIN.md" instruction instead).
+// The unified, neutral, self-contained brain block. Every agent gets the same
+// body; the ONLY difference is that claude-code additionally carries an
+// `@import ./BRAIN.md` line (Claude Code-specific — AGENTS.md agents do not).
 function brainWireBlock(agent) {
   const lines = [
     "## Project Brain",
     "",
     "This project keeps a **Project Brain**: a persistent memory layer of its durable decisions, requirements, and constraints. Read `./BRAIN.md` for the full read/write contract.",
     "",
-    "Use it actively:",
-    "- Before any task or discussion, load the relevant brain context with the `brain` CLI's read commands.",
-    "- Whenever a decision, requirement, constraint, or durable insight surfaces — in discussion or in code — record it with the `brain` CLI before moving on; don't wait to be asked.",
+    "Maintain the brain as part of normal coding work — not as a separate task. While discussing or implementing features:",
+    "- **Start of a task:** load relevant context with the `brain` CLI (`list-pages`, `read-page`, `read-root`). Prefer a narrow read over scanning everything.",
+    "- **When a decision, requirement, constraint, or durable insight settles** (in chat or while coding): capture it immediately via the `brain` CLI. Do not wait to be asked and do not batch it for later.",
+    "- **Pure implementation with no new decision:** do not write to the brain.",
+    "- **When overturning a prior conclusion:** update the page (`update-truth` and/or `append-timeline` with `kind: reversal`, or `archive-page`).",
+    "- Only store what will still matter in six months and is hard to reconstruct from the code alone.",
     "- All reads and writes go through the `brain` CLI — never hand-edit brain files.",
     "",
-    "The brain skills (`brain-setup`, `brain-page`, `brain-ingest`, `brain-bootstrap`) are installed in your global skills directory.",
+    "The brain skills (`brain-setup`, `brain-page`, `brain-ingest`, `brain-bootstrap`) are installed in your global skills directory. Prefer `brain init` to scaffold a new project.",
   ];
-  // claude-code only: the @import line trails the read instruction. Removing this
-  // single line yields a body identical to the codex block.
   if (agent === "claude-code") lines.splice(3, 0, "@import ./BRAIN.md");
   return [WIRE_BEGIN, ...lines, WIRE_END].join("\n");
 }
@@ -424,40 +435,133 @@ function collectAgents(rest) {
   return out;
 }
 
-function cmdWire(rest) {
-  const agents = collectAgents(rest);
-  if (agents.length === 0)
-    fail(`wire needs at least one --agent (one of ${Object.keys(WIRE_AGENTS).join(" / ")})`);
-  for (const a of agents)
-    if (!(a in WIRE_AGENTS))
-      fail(`unknown agent "${a}" (one of ${Object.keys(WIRE_AGENTS).join(" / ")})`);
+/**
+ * Resolve which agents to wire. Empty / `all` → default set covering CLAUDE.md + AGENTS.md.
+ * Dedupes so each target file is written once (first agent wins for block flavor).
+ */
+function resolveWireAgents(requested) {
+  let agents = requested.length === 0 || requested.includes("all")
+    ? [...DEFAULT_WIRE_AGENTS]
+    : [...requested];
+  for (const a of agents) {
+    if (a === "all") continue;
+    if (!(a in WIRE_AGENTS)) {
+      fail(`unknown agent "${a}" (one of ${Object.keys(WIRE_AGENTS).join(" / ")} / all)`);
+    }
+  }
+  agents = agents.filter((a) => a !== "all");
+  if (agents.length === 0) agents = [...DEFAULT_WIRE_AGENTS];
 
-  for (const agent of [...new Set(agents)]) {
+  const byFile = new Map();
+  for (const agent of agents) {
     const file = WIRE_AGENTS[agent];
-    const path = join(ROOT, file);
-    const block = brainWireBlock(agent);
+    if (!byFile.has(file)) byFile.set(file, agent);
+  }
+  return [...byFile.values()];
+}
 
-    let action;
-    if (!existsSync(path)) {
-      // File absent → create it from the unified format.
-      writeFileAtomic(path, `${block}\n`);
-      action = "created";
+function wireOneAgent(agent) {
+  const file = WIRE_AGENTS[agent];
+  const path = join(ROOT, file);
+  const block = brainWireBlock(agent);
+
+  let action;
+  if (!existsSync(path)) {
+    writeFileAtomic(path, `${block}\n`);
+    action = "created";
+  } else {
+    const current = readFileSync(path, "utf8");
+    if (current.includes(WIRE_BEGIN) && current.includes(WIRE_END)) {
+      const re = new RegExp(`${escapeRegExp(WIRE_BEGIN)}[\\s\\S]*?${escapeRegExp(WIRE_END)}`);
+      writeFileAtomic(path, current.replace(re, block));
+      action = "updated the brain block in";
     } else {
-      const current = readFileSync(path, "utf8");
-      if (current.includes(WIRE_BEGIN) && current.includes(WIRE_END)) {
-        // Marked block present → replace it in place (supports upgrades).
-        const re = new RegExp(`${escapeRegExp(WIRE_BEGIN)}[\\s\\S]*?${escapeRegExp(WIRE_END)}`);
-        writeFileAtomic(path, current.replace(re, block));
-        action = "updated the brain block in";
-      } else {
-        // File present, no marker → append the block with a leading blank line.
-        const trimmed = current.replace(/\s*$/, "");
-        writeFileAtomic(path, `${trimmed}\n\n${block}\n`);
-        action = "appended a brain block to";
+      const trimmed = current.replace(/\s*$/, "");
+      writeFileAtomic(path, `${trimmed}\n\n${block}\n`);
+      action = "appended a brain block to";
+    }
+  }
+  console.log(`brain: ${action} ${file} (agent: ${agent})`);
+  return { file, action, agent };
+}
+
+function cmdWire(rest) {
+  const agents = resolveWireAgents(collectAgents(rest));
+  for (const agent of agents) wireOneAgent(agent);
+}
+
+// ---- init (deterministic project scaffold + default wire) -------------------
+
+function copyIfMissing(src, dest) {
+  if (existsSync(dest)) return false;
+  mkdirSync(dirname(dest), { recursive: true });
+  cpSync(src, dest, { recursive: true });
+  return true;
+}
+
+function isBrainPopulated() {
+  return listRootPages().length > 0 || listPages().length > 0;
+}
+
+function cmdInit(rest) {
+  const { flags } = parseArgs(rest);
+  const noWire = Boolean(flags["no-wire"]);
+
+  if (!existsSync(SETUP_ASSETS)) {
+    fail(
+      `init cannot find scaffold assets at ${SETUP_ASSETS} — is the brain-setup skill installed next to brain-page?`,
+    );
+  }
+
+  // 1. BRAIN.md in project root (never overwrite).
+  const brainMdSrc = join(SETUP_ASSETS, "BRAIN.md");
+  const brainMdDest = join(ROOT, "BRAIN.md");
+  if (copyIfMissing(brainMdSrc, brainMdDest)) {
+    console.log("brain: created BRAIN.md");
+  } else {
+    console.log("brain: BRAIN.md already present (left untouched)");
+  }
+
+  // 2. Scaffold brain data only if the resolved location is empty.
+  if (isBrainPopulated()) {
+    console.log(`brain: brain data already populated at ${BRAIN_DIR} (left untouched)`);
+  } else {
+    const skeletonSrc = join(SETUP_ASSETS, "brain");
+    mkdirSync(BRAIN_DIR, { recursive: true });
+    mkdirSync(PAGES_DIR, { recursive: true });
+    for (const name of readdirSync(skeletonSrc)) {
+      if (name === "pages") {
+        mkdirSync(join(BRAIN_DIR, "pages"), { recursive: true });
+        continue;
+      }
+      const from = join(skeletonSrc, name);
+      const to = join(BRAIN_DIR, name);
+      if (copyIfMissing(from, to)) {
+        const rel = to.startsWith(`${ROOT}/`) ? to.slice(ROOT.length + 1) : to;
+        console.log(`brain: scaffolded ${rel}`);
       }
     }
-    console.log(`brain: ${action} ${file} (agent: ${agent})`);
+    mkdirSync(PAGES_DIR, { recursive: true });
+    try {
+      const { count } = reindexBrain();
+      console.log(`brain: reindexed (${count} pages) at ${BRAIN_DIR}`);
+    } catch {
+      // best-effort on partial scaffolds
+    }
+    console.log(`brain: brain data ready at ${BRAIN_DIR} (source: ${BRAIN_DIR_SOURCE})`);
   }
+
+  // 3. Default wire CLAUDE.md + AGENTS.md (create or update block only).
+  if (noWire) {
+    console.log("brain: skipped wire (--no-wire)");
+  } else {
+    const agents = resolveWireAgents(collectAgents(rest));
+    for (const agent of agents) wireOneAgent(agent);
+  }
+
+  console.log(
+    "brain: init done. Seed real knowledge next (brain-bootstrap skill), then maintain the brain while coding.",
+  );
 }
 
 // ---- dispatch ---------------------------------------------------------------
@@ -484,10 +588,14 @@ Writes (correct-by-construction):
   set-tags        --id <kebab> --tags a,b,c
   update-root     <slug>                                        (body read from stdin)
 
+Project setup:
+  init            [--no-wire] [--agent …]   ensure BRAIN.md, scaffold empty brain, default-wire CLAUDE.md + AGENTS.md
+
 Wiring (deterministic agent-config):
-  wire            --agent <claude-code|codex|opencode|cursor|pi>  (repeatable, or comma-separated)
-                  writes a unified brain block into ./CLAUDE.md (claude-code) / ./AGENTS.md (codex / opencode / cursor / pi);
-                  idempotent via <!-- BEGIN brain.md --> … <!-- END brain.md --> markers.
+  wire            [--agent <claude-code|codex|opencode|cursor|pi|all>]
+                  default (no --agent, or --agent all): wire CLAUDE.md + AGENTS.md
+                  missing files are created; existing files only update the marked brain block
+                  (<!-- BEGIN brain.md --> … <!-- END brain.md -->); never whole-file overwrite
 
 Index / checks:
   reindex         rebuild brain/index.md
@@ -513,6 +621,7 @@ async function main() {
     case "archive-page": return cmdArchivePage(flags);
     case "set-tags": return cmdSetTags(flags);
     case "update-root": return cmdUpdateRoot(positional, flags);
+    case "init": return cmdInit(rest);
     case "wire": return cmdWire(rest);
     case "reindex": return cmdReindex();
     case "lint-links": return cmdLintLinks();

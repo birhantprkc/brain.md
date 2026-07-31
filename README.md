@@ -53,22 +53,36 @@ and anything readable straight from the code and git history stay where they are
 
 ## Quick start
 
-**1. Install the tools once (global):**
+**1. Install the tools once (global) — no clone required:**
 
 ```bash
-./setup        # symlinks skills/ into every detected agent (~/.claude/skills, ~/.codex/skills, …)
-./uninstall    # reverses it cleanly; never touches any project's brain data
+npx brain-md setup -y     # copies skills into every detected agent (~/.claude/skills, …)
+# or: npm install -g brain-md && brain-md setup
+npx brain-md uninstall    # reverses it cleanly; never touches any project's brain data
 ```
 
-**2. Initialize a project** — run the **brain-setup** skill in it. It scaffolds `BRAIN.md` +
-the brain skeleton, wires the chosen agents' config files, and can install a pre-commit hook.
+From a git checkout of this repo you can still run `./setup` (same installer; use `--symlink` while developing the toolkit).
+
+**2. Initialize a project** (from the project root):
+
+```bash
+brain init                # after npm install -g brain-md
+# or: node path/to/skills/brain-page/bin/brain.mjs init
+```
+
+This ensures `BRAIN.md`, scaffolds empty brain data (brainRoot-aware), and **default-wires**
+`CLAUDE.md` + `AGENTS.md` (creates them if missing; if they already exist, only updates the
+marked brain block — never whole-file overwrite). Optionally use the **brain-setup** skill for
+the same flow plus a pre-commit hook.
 
 **3. Seed real knowledge** — run the **brain-bootstrap** skill. On an existing project it reads
 the code, docs, and `git log` to draft the root pages and capture key decisions; on a near-empty
-one it interviews you. (Setup leaves the brain empty on purpose — seeding is a separate, deliberate step.)
+one it interviews you. (Init leaves content seeding as a deliberate next step.)
 
-**4. Work as usual.** The agent reads and writes the brain only through the `brain` CLI,
-following `BRAIN.md` — brain files are never hand-edited.
+**4. Work as usual.** Maintain the brain **while coding**: load relevant pages at task start;
+capture decisions/constraints when they settle; skip pure implementation noise; reverse when
+overturning. All reads/writes go through the `brain` CLI following `BRAIN.md` — never hand-edit
+brain files.
 
 ## See it work
 
@@ -97,8 +111,10 @@ Agent  $ brain read-page config-as-markdown
 Reading and writing the brain both go through one zero-dependency Node CLI (run with `node`):
 
 ```bash
-brain() { node skills/brain-page/bin/brain.mjs "$@"; }
+brain() { node skills/brain-page/bin/brain.mjs "$@"; }   # or use the global `brain` bin after npm install -g
 
+brain init                                   # BRAIN.md + skeleton + default wire CLAUDE.md / AGENTS.md
+brain wire                                   # same default wire (no --agent needed)
 brain brain-dir                              # where is the brain?
 brain list-pages                             # list pages
 brain read-page my-decision                  # read a page
@@ -106,7 +122,6 @@ brain create-page --id my-decision --category decision --title "Use X over Y"
 echo "the new understanding" | brain update-truth --id my-decision --summary "why it changed"
 brain append-timeline --id my-decision --kind evidence --summary "benchmark confirmed it"
 echo "## Overview …" | brain update-root architecture
-brain wire --agent claude-code,codex,opencode,cursor,pi   # wire CLAUDE.md / AGENTS.md to BRAIN.md
 brain reindex && brain lint-links
 ```
 
