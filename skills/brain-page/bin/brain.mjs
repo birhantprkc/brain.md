@@ -627,6 +627,11 @@ async function main() {
     case "wire": return cmdWire(rest);
     case "reindex": return cmdReindex();
     case "lint-links": return cmdLintLinks();
+    case "setup":
+    case "uninstall":
+      // Toolchain management only exists on the npm-installed `brain`; a
+      // copied/symlinked skill bundle has no installer alongside it.
+      fail(`"brain ${sub}" is only available from the npm-installed CLI — run: npm install -g brain-md, then brain ${sub}`);
     case undefined:
     case "help":
     case "-h":

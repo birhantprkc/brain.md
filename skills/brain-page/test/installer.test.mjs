@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
-const INSTALLER = join(ROOT, "bin", "brain-md.mjs");
+const INSTALLER = join(ROOT, "bin", "brain.mjs");
 
 function makeSandbox(t) {
   const base = mkdtempSync(join(tmpdir(), "brain-installer-"));

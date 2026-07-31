@@ -1,7 +1,7 @@
 #!/bin/sh
 # brain.md installer — thin wrapper around the Node installer.
-# Prefer: npm install -g brain-md && brain-md setup
-# Or from a checkout: ./setup  (same as: node bin/brain-md.mjs setup)
+# Prefer: npm install -g brain-md && brain setup
+# Or from a checkout: ./setup  (same as: node bin/brain.mjs setup)
 set -eu
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
-exec node "$SCRIPT_DIR/bin/brain-md.mjs" setup "$@"
+exec node "$SCRIPT_DIR/bin/brain.mjs" setup "$@"

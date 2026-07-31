@@ -53,11 +53,11 @@ and anything readable straight from the code and git history stay where they are
 
 ## Quick start
 
-**1. Install the tools once (global) — no clone required:**
+**1. Install the tools once (global) — no clone required. One command, `brain`:**
 
 ```bash
 npx brain-md setup -y     # copies skills into every detected agent (~/.claude/skills, …)
-# or: npm install -g brain-md && brain-md setup
+# or: npm install -g brain-md && brain setup
 npx brain-md uninstall    # reverses it cleanly; never touches any project's brain data
 ```
 

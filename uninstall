@@ -1,6 +1,6 @@
 #!/bin/sh
 # brain.md uninstaller — thin wrapper around the Node uninstaller.
-# Prefer: brain-md uninstall  or  npx brain-md uninstall
+# Prefer: brain uninstall  or  npx brain-md uninstall
 set -eu
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
-exec node "$SCRIPT_DIR/bin/brain-md.mjs" uninstall "$@"
+exec node "$SCRIPT_DIR/bin/brain.mjs" uninstall "$@"

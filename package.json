@@ -4,8 +4,6 @@
   "description": "Open Project Brain Standard — install-first, agent-agnostic toolkit. Capture a project's durable knowledge as plain Markdown, read and written through one zero-dependency CLI.",
   "type": "module",
   "bin": {
-    "brain-md": "bin/brain-md.mjs",
-    "brain-md-uninstall": "bin/brain-md-uninstall.mjs",
     "brain": "bin/brain.mjs"
   },
   "files": [
