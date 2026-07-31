@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, lstatSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
@@ -47,4 +47,24 @@ test("setup detects and installs into Cursor and Pi runtimes", (t) => {
   const manifest = readFileSync(join(sandbox.state, "brain.md", "installed-links"), "utf8");
   assert.match(manifest, /\.cursor\/skills\/brain-page/);
   assert.match(manifest, /\.pi\/agent\/skills\/brain-page/);
+});
+
+test("setup replaces a dangling symlink with a fresh copy (no crash)", (t) => {
+  const sandbox = makeSandbox(t);
+  const skillsDir = join(sandbox.home, ".claude", "skills");
+  mkdirSync(skillsDir, { recursive: true });
+  // Leftover from a source repo that has since moved: symlink to nowhere.
+  symlinkSync(
+    join(sandbox.home, "no-such-repo", "skills", "brain-page"),
+    join(skillsDir, "brain-page"),
+  );
+
+  const r = runInstaller(["setup", "-y"], sandbox);
+  assert.equal(r.status, 0, r.stderr || r.stdout);
+  assert.match(r.stdout, /copied .*brain-page/);
+
+  const target = join(skillsDir, "brain-page");
+  assert.ok(!lstatSync(target).isSymbolicLink());
+  assert.ok(existsSync(join(target, "SKILL.md")));
+  assert.ok(existsSync(join(target, ".brain-md-installed")));
 });

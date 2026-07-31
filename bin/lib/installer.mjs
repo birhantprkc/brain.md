@@ -23,6 +23,7 @@ import {
   mkdirSync,
   cpSync,
   symlinkSync,
+  unlinkSync,
   lstatSync,
 } from "node:fs";
 import { join, dirname } from "node:path";
@@ -175,7 +176,10 @@ function discoverSkills() {
 function installSkill({ source, target, mode }) {
   if (lexists(target)) {
     if (isSymlink(target)) {
-      rmSync(target, { force: true });
+      // unlinkSync, not rmSync: rmSync({force:true}) on Node < 24.14 silently
+      // leaves a dangling symlink in place, and the cpSync below then dies on
+      // an uncatchable C++ exception (std::filesystem::equivalent).
+      unlinkSync(target);
     } else if (isOurCopy(target)) {
       rmSync(target, { recursive: true, force: true }); // our own previous copy → refresh
     } else {
@@ -206,7 +210,7 @@ function installSkill({ source, target, mode }) {
 function removeSkill({ mode, target }) {
   if (mode === "link") {
     if (isSymlink(target)) {
-      rmSync(target, { force: true });
+      unlinkSync(target); // removes the link itself, even when dangling
       console.log(`uninstall: removed ${target}`);
       restoreBackup(target);
       return true;
