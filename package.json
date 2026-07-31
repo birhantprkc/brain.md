@@ -10,7 +10,12 @@
   },
   "files": [
     "bin/",
-    "skills/",
+    "skills/brain-page/SKILL.md",
+    "skills/brain-page/bin/",
+    "skills/brain-page/lib/",
+    "skills/brain-setup/",
+    "skills/brain-bootstrap/",
+    "skills/brain-ingest/",
     "README.md",
     "LICENSE"
   ],
@@ -18,7 +23,7 @@
     "node": ">=18"
   },
   "scripts": {
-    "test": "node --test \"skills/brain-page/test/**/*.test.mjs\""
+    "test": "node --test"
   },
   "license": "Apache-2.0",
   "homepage": "https://projectbrain.md",

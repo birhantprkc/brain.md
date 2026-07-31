@@ -115,6 +115,21 @@ test("wire is idempotent: second run replaces the marked block only once", (t) =
   assertCompanionBlock(agents);
 });
 
+test("wire fails loudly on a damaged block (one marker without its pair)", (t) => {
+  const project = makeEmptyProject(t);
+  writeFileSync(
+    join(project, "AGENTS.md"),
+    `# Notes\n\n${WIRE_BEGIN}\n\nstale block, END marker lost\n`,
+  );
+
+  const r = runBrain(project, ["wire"]);
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr, /damaged brain block/);
+  // File left untouched; no second block appended.
+  const agents = readFileSync(join(project, "AGENTS.md"), "utf8");
+  assert.equal(countMarkers(agents, WIRE_BEGIN), 1);
+});
+
 test("init creates BRAIN.md, scaffolds brain, and default-wires agent files", (t) => {
   const project = makeEmptyProject(t);
   const r = runBrain(project, ["init"]);

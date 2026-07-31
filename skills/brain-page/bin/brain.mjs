@@ -471,7 +471,13 @@ function wireOneAgent(agent) {
     action = "created";
   } else {
     const current = readFileSync(path, "utf8");
-    if (current.includes(WIRE_BEGIN) && current.includes(WIRE_END)) {
+    const hasBegin = current.includes(WIRE_BEGIN);
+    const hasEnd = current.includes(WIRE_END);
+    if (hasBegin !== hasEnd)
+      fail(
+        `${file} has a damaged brain block (${hasBegin ? "BEGIN" : "END"} marker without its pair) — repair or remove the marker and re-run`,
+      );
+    if (hasBegin) {
       const re = new RegExp(`${escapeRegExp(WIRE_BEGIN)}[\\s\\S]*?${escapeRegExp(WIRE_END)}`);
       writeFileAtomic(path, current.replace(re, block));
       action = "updated the brain block in";
@@ -530,10 +536,7 @@ function cmdInit(rest) {
     mkdirSync(BRAIN_DIR, { recursive: true });
     mkdirSync(PAGES_DIR, { recursive: true });
     for (const name of readdirSync(skeletonSrc)) {
-      if (name === "pages") {
-        mkdirSync(join(BRAIN_DIR, "pages"), { recursive: true });
-        continue;
-      }
+      if (name === "pages") continue; // pages/ scaffolded empty (PAGES_DIR above)
       const from = join(skeletonSrc, name);
       const to = join(BRAIN_DIR, name);
       if (copyIfMissing(from, to)) {
@@ -541,7 +544,6 @@ function cmdInit(rest) {
         console.log(`brain: scaffolded ${rel}`);
       }
     }
-    mkdirSync(PAGES_DIR, { recursive: true });
     try {
       const { count } = reindexBrain();
       console.log(`brain: reindexed (${count} pages) at ${BRAIN_DIR}`);
