@@ -153,6 +153,12 @@ The skills that drive it all:
 
 ---
 
+## Roadmap
+
+- [Event-driven brain](docs/event-driven-brain.md) — automatic read-injection and
+  event-driven capture (hooks + watermark sync) in mindmux and any LLM TUI, with the
+  model always supplied by the environment (no provider config, zero dependency).
+
 <sub>brain.md is led and incubated by **MindMux** — the standalone open-source landing of
 MindMux's Brain Spec + coding-agent adapter. The specification layer uses neutral naming so it
 can be adopted widely; stewardship and maintenance belong to MindMux. Licensed under Apache-2.0.</sub>
