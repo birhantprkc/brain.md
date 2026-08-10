@@ -130,6 +130,19 @@ test("wire fails loudly on a damaged block (one marker without its pair)", (t) =
   assert.equal(countMarkers(agents, WIRE_BEGIN), 1);
 });
 
+test("wire fails loudly on duplicate complete BEGIN/END pairs", (t) => {
+  const project = makeEmptyProject(t);
+  const block = `${WIRE_BEGIN}\nold block\n${WIRE_END}`;
+  const original = `# Notes\n\n${block}\n\n## Extra\n\n${block}\n`;
+  writeFileSync(join(project, "AGENTS.md"), original);
+
+  const r = runBrain(project, ["wire"]);
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr, /2 brain blocks|duplicate/i);
+  // File left untouched; no partial update of the first pair only.
+  assert.equal(readFileSync(join(project, "AGENTS.md"), "utf8"), original);
+});
+
 test("init creates BRAIN.md, scaffolds brain, and default-wires agent files", (t) => {
   const project = makeEmptyProject(t);
   const r = runBrain(project, ["init"]);

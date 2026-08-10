@@ -27,11 +27,12 @@
 
 ---
 
-This repository is the **toolkit**, not a brain itself. Install it once, then run `brain-setup`
-inside any project: it scaffolds a [`BRAIN.md`](./skills/brain-setup/assets/BRAIN.md) protocol
-file and a `brain/` directory into **your** repo. From then on, any coding agent — Claude Code,
-Codex, anything that reads files — learns to use that brain just by reading the project's
-`BRAIN.md`. The brain is plain Markdown, lives in the repo, and outlives every session.
+This repository is the **toolkit**, not a brain itself. Install it once, then in any project run
+`brain init`: it scaffolds a [`BRAIN.md`](./skills/brain-setup/assets/BRAIN.md) protocol file, a
+`brain/` directory, and default-wires agent config files into **your** repo. From then on, any
+coding agent — Claude Code, Codex, anything that reads files — learns to use that brain just by
+reading the project's `BRAIN.md`. The brain is plain Markdown, lives in the repo, and outlives
+every session.
 
 ## Why a brain
 
@@ -146,7 +147,7 @@ The skills that drive it all:
 
 | skill | what it does |
 |---|---|
-| **brain-setup** | scaffold `BRAIN.md` + the brain skeleton, wire agent configs, optional pre-commit hook |
+| **brain-setup** | same scaffold/wire as `brain init`, plus an optional pre-commit hook — prefer `brain init` for day-to-day |
 | **brain-bootstrap** | seed the brain from code / docs / `git log` — or interview you on a greenfield project |
 | **brain-page** | the operating manual for reading and writing pages + root pages (carries the `brain` CLI) |
 | **brain-ingest** | digest a conversation, document, or research result into the brain |

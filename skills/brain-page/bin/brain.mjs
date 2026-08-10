@@ -460,6 +460,17 @@ function resolveWireAgents(requested) {
   return [...byFile.values()];
 }
 
+function countOccurrences(haystack, needle) {
+  let n = 0;
+  let i = 0;
+  while (true) {
+    const j = haystack.indexOf(needle, i);
+    if (j === -1) return n;
+    n += 1;
+    i = j + needle.length;
+  }
+}
+
 function wireOneAgent(agent) {
   const file = WIRE_AGENTS[agent];
   const path = join(ROOT, file);
@@ -471,15 +482,30 @@ function wireOneAgent(agent) {
     action = "created";
   } else {
     const current = readFileSync(path, "utf8");
-    const hasBegin = current.includes(WIRE_BEGIN);
-    const hasEnd = current.includes(WIRE_END);
-    if (hasBegin !== hasEnd)
+    const beginCount = countOccurrences(current, WIRE_BEGIN);
+    const endCount = countOccurrences(current, WIRE_END);
+    if (beginCount !== endCount)
       fail(
-        `${file} has a damaged brain block (${hasBegin ? "BEGIN" : "END"} marker without its pair) — repair or remove the marker and re-run`,
+        `${file} has a damaged brain block (${beginCount > endCount ? "BEGIN" : "END"} marker without its pair) — repair or remove the marker and re-run`,
       );
-    if (hasBegin) {
+    if (beginCount > 1)
+      fail(
+        `${file} has ${beginCount} brain blocks (duplicate BEGIN/END pairs) — leave a single pair and re-run`,
+      );
+    if (beginCount === 1) {
       const re = new RegExp(`${escapeRegExp(WIRE_BEGIN)}[\\s\\S]*?${escapeRegExp(WIRE_END)}`);
-      writeFileAtomic(path, current.replace(re, block));
+      // Function replacer so `$` in the block is never treated as a special
+      // substitution pattern (String.replace with a string replacement would).
+      // Do not use `next === current` to detect a miss: an already-current block
+      // is a successful no-op update (idempotent re-run).
+      let matched = false;
+      const next = current.replace(re, () => {
+        matched = true;
+        return block;
+      });
+      if (!matched)
+        fail(`${file} has BEGIN/END markers but the brain block could not be matched — repair the markers and re-run`);
+      writeFileAtomic(path, next);
       action = "updated the brain block in";
     } else {
       const trimmed = current.replace(/\s*$/, "");

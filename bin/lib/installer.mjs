@@ -2,7 +2,7 @@
 //
 // The toolkit (skills + the brain CLI) installs once, across all projects.
 // Installing NEVER touches any project's brain knowledge — that is per-project
-// state, created on demand by the brain-setup skill and never managed here.
+// state, created on demand by `brain init` / the brain-setup skill and never managed here.
 //
 // Default mode copies each skill bundle into the target agent's skills directory
 // (robust on Windows and after the source repo moves). `--symlink` keeps the old
@@ -206,7 +206,9 @@ function installSkill({ source, target, mode }) {
   return { mode: "copy", target };
 }
 
-// Remove one skill recorded in the manifest. Returns true when removed.
+// Remove one skill recorded in the manifest. Returns true when the entry can
+// be dropped from the manifest (removed, or already gone). Returns false only
+// when something is present at the target that is not ours — keep the record.
 function removeSkill({ mode, target }) {
   if (mode === "link") {
     if (isSymlink(target)) {
@@ -215,7 +217,14 @@ function removeSkill({ mode, target }) {
       restoreBackup(target);
       return true;
     }
-    if (lexists(target)) console.error(`uninstall: ${target} is not our symlink; leaving it untouched`);
+    if (!lexists(target)) {
+      // Manually deleted / vanished path: still drop the manifest entry and
+      // restore any backup left beside the missing target.
+      console.log(`uninstall: ${target} already absent`);
+      restoreBackup(target);
+      return true;
+    }
+    console.error(`uninstall: ${target} is not our symlink; leaving it untouched`);
     return false;
   }
   // copy
@@ -225,7 +234,12 @@ function removeSkill({ mode, target }) {
     restoreBackup(target);
     return true;
   }
-  if (lexists(target)) console.error(`uninstall: ${target} is not our copy; leaving it untouched`);
+  if (!lexists(target)) {
+    console.log(`uninstall: ${target} already absent`);
+    restoreBackup(target);
+    return true;
+  }
+  console.error(`uninstall: ${target} is not our copy; leaving it untouched`);
   return false;
 }
 
@@ -305,7 +319,8 @@ export async function runSetup({ assumeYes = false, symlink = false, project = f
   const manifest = manifestPath(project);
   writeManifest(manifest, [...readManifest(manifest), ...records]);
   console.log(`\nsetup: done. Manifest: ${manifest}`);
-  console.log("setup: run the brain-setup skill inside a project to scaffold its BRAIN.md + brain/.");
+  console.log("setup: next, in a project root run: brain init");
+  console.log("setup: (optional) brain-setup skill adds a pre-commit hook on top of init.");
 }
 
 export async function runUninstall({ assumeYes = false, keepState = false, project = false } = {}) {
@@ -326,19 +341,17 @@ export async function runUninstall({ assumeYes = false, keepState = false, proje
 
   const ask = makeAsker(assumeYes);
   let removed = 0;
-  let anyLeft = false;
   const remaining = [];
   try {
     for (const [runtime, list] of byRuntime) {
       if (!(await ask(`Remove brain.md skills from ${runtime}?`))) {
         console.log(`uninstall: kept ${runtime}.`);
-        anyLeft = true;
         remaining.push(...list);
         continue;
       }
       for (const e of list) {
         if (removeSkill(e)) removed++;
-        else remaining.push(e); // couldn't remove (not ours) → keep recorded
+        else remaining.push(e); // present but not ours → keep recorded
       }
     }
   } finally {

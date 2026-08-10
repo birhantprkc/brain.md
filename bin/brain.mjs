@@ -19,14 +19,16 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const here = dirname(fileURLToPath(import.meta.url)); // <pkg>/bin
 const sub = process.argv[2];
 
+const TOOLCHAIN_BLURB = `Toolchain (machine-level, run once; never touches project brain data):
+  brain setup [--project] [--symlink] [--yes]     install the skills into agent runtimes
+  brain uninstall [--project] [--keep-state] [--yes]
+`;
+
 const INSTALL_HELP = `brain — the Open Project Brain Standard toolkit
 
-Toolchain (machine-level, run once):
-  brain setup [--project] [--symlink] [--yes]     install the skills + CLI
-  brain uninstall [--project] [--keep-state] [--yes]
-
+${TOOLCHAIN_BLURB}
 Everything else (init, wire, pages, …) is the project-level brain CLI —
-run \`brain help\`. Installing never touches any project's brain knowledge.`;
+run \`brain help\`.`;
 
 function parseInstallOpts(argv) {
   const opts = { assumeYes: false, symlink: false, project: false, keepState: false };
@@ -67,6 +69,11 @@ if (sub === "setup" || sub === "uninstall") {
     process.exit(1);
   });
 } else {
+  // Surface toolchain commands when users land on top-level help after
+  // `npm i -g brain-md` (the skill-bundle CLI only knows project commands).
+  if (sub === undefined || sub === "help" || sub === "-h" || sub === "--help") {
+    process.stdout.write(`${TOOLCHAIN_BLURB}\n`);
+  }
   const cli = join(here, "..", "skills", "brain-page", "bin", "brain.mjs");
   // Importing runs the CLI's main() against the current process.argv / cwd.
   // Use a file:// URL so the absolute path also resolves on Windows ESM.
