@@ -1,11 +1,19 @@
 ---
 name: brain-setup
-description: Bootstrap the Open Project Brain Standard into the current project — ensure BRAIN.md is in the project root, resolve the brain data location with `brain brain-dir` (brainRoot-aware), scaffold the brain/ skeleton there only if it is empty (never a second local ./brain when redirected), idempotently wire CLAUDE.md / AGENTS.md, and optionally install a pre-commit hook.
+description: Bootstrap the Open Project Brain Standard into the current project — prefer `brain init` (ensure BRAIN.md, scaffold empty brain brainRoot-aware, default-wire CLAUDE.md + AGENTS.md). Optionally install a pre-commit hook.
 ---
 
 # brain-setup
 
 This skill bootstraps a project into the **Open Project Brain Standard**: it drops in the protocol entry point and the `brain/` skeleton so the **brain-page** and **brain-ingest** skills (and the `brain` CLI) have something to work with. It is **idempotent** — safe to run again on an already-initialized project.
+
+**Preferred one-shot path:** from the project root run:
+
+```
+node <brain-page-bundle>/bin/brain.mjs init
+```
+
+That command ensures `BRAIN.md`, scaffolds empty brain data (brainRoot-aware), and **default-wires** `CLAUDE.md` + `AGENTS.md` (create if missing; if present, only update/append the marked brain block — never whole-file overwrite). Use the steps below when you need the optional pre-commit hook or are explaining the flow.
 
 > **NEVER hand-edit any file under the brain directory. All reads and writes MUST go through the `brain` CLI. Manual edits are unsupported and illegitimate.** This scaffold creates the brain once; from then on every read and write is a `brain` subcommand. There is no validator and nothing at the file layer can catch a bad manual edit, so a hand edit silently breaks the brain's invariants.
 
@@ -50,24 +58,24 @@ Branch on the resolved state:
 
 No example pages are scaffolded; the page format is documented in `BRAIN.md` and the **brain-page** skill.
 
-### 3. Wire the agent-config files via `brain wire`
+### 3. Wire the agent-config files via `brain wire` (default both files)
 
-The project's agent-config files must point at `BRAIN.md` so agents pick up the contract. Wiring is **deterministic — done by the CLI, not by hand.** Do not hand-write `@import` lines or template paragraphs.
+The project's agent-config files must point at `BRAIN.md` so agents pick up the contract. Wiring is **deterministic — done by the CLI, not by hand.** Do not hand-write `@import` lines or template paragraphs. **Do not ask which agents to wire** — default to both config files unless the user explicitly requests a subset.
 
-First, **ask the user which agents to wire** for this project (v0.1 supports `claude-code`, `codex`, `opencode`, `cursor`, and `pi`). Then, for each chosen agent, run:
+Run (default — no `--agent` required):
 
 ```
-node <brain-page-bundle>/bin/brain.mjs wire --agent <claude-code|codex|opencode|cursor|pi>
+node <brain-page-bundle>/bin/brain.mjs wire
 ```
 
-You may pass `--agent` multiple times or comma-separate them, e.g. `wire --agent claude-code,codex,opencode,cursor,pi`.
+Equivalent: `wire --agent all`. Optional subset: `--agent claude-code` or comma-separated list. Supported ids: `claude-code`, `codex`, `opencode`, `cursor`, `pi`, `all`.
 
 What the command does (so you can explain it):
 
-- Maps `claude-code → ./CLAUDE.md` and `codex / opencode / cursor / pi → ./AGENTS.md` in the project root.
-- Writes one **unified, neutral, self-contained brain block** — wrapped in `<!-- BEGIN brain.md -->` … `<!-- END brain.md -->` — that names the Open Project Brain Standard, instructs the agent to read `./BRAIN.md` (the full read/write contract), states the core rule (all brain reads/writes go through the `brain` CLI; never hand-edit a brain file), and notes that the four brain skills are installed globally.
-- Both files get the **same** block body; the only difference is that `CLAUDE.md` additionally carries an `@import ./BRAIN.md` line (Claude Code-specific syntax — the other agents don't understand `@import`, so `AGENTS.md` relies on the plain "read `./BRAIN.md`" instruction).
-- It is **idempotent** via the markers: absent file → created; existing file without the markers → block appended; existing marked block → replaced in place (so re-running upgrades the block instead of duplicating it).
+- Default maps to **both** `./CLAUDE.md` (claude-code block with `@import`) and `./AGENTS.md` (shared block for codex / opencode / cursor / pi).
+- Writes one **unified, neutral, self-contained brain block** — wrapped in `<!-- BEGIN brain.md -->` … `<!-- END brain.md -->` — that tells the agent to read `./BRAIN.md`, states the **session-companion** rules (load brain at task start; capture decisions/constraints when they settle during coding; skip pure implementation; reverse/update when overturning; all via the `brain` CLI; never hand-edit), and notes the four brain skills are installed globally.
+- Both files get the **same** block body; the only difference is that `CLAUDE.md` additionally carries an `@import ./BRAIN.md` line (Claude Code-specific — other agents don't understand `@import`).
+- **Idempotent** via the markers: absent file → created; existing file without markers → block **appended** (preserve user content); existing marked block → replaced in place (upgrades, never duplicates). Never whole-file overwrite outside the markers.
 
 ### 4. Optionally install a pre-commit hook
 

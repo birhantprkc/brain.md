@@ -34,11 +34,21 @@ Define a shell function (do **not** use `BRAIN="node <bundle>/bin/brain.mjs"; $B
 
 ```
 brain() { node <bundle>/bin/brain.mjs "$@"; }
+brain init            # ensure BRAIN.md, scaffold empty brain, default-wire CLAUDE.md + AGENTS.md
+brain wire            # default wire both agent config files (optional --agent subset / all)
 brain brain-dir       # print the resolved brain directory + its source (brainRoot / default)
 brain list-pages      # list every page: id / title / category / status
 brain read-page <id>  # print brain/pages/<id>.md
 brain read-root <slug> # print a root page brain/<slug>.md
 ```
+
+### Session-companion discipline (while coding)
+
+- **Start of a task:** load relevant brain context (`list-pages` / `read-page` / `read-root`).
+- **When a decision/constraint settles:** capture it immediately via the CLI — do not wait to be asked.
+- **Pure implementation with no new decision:** do not write to the brain.
+- **When overturning a prior conclusion:** `update-truth` and/or `append-timeline --kind reversal` (or `archive-page`).
+- Never hand-edit brain files.
 
 ## The five page categories
 

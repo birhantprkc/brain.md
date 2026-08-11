@@ -15,11 +15,12 @@ This file is the **single source of truth for the full read + write contract**, 
 
 The brain is not a passive archive you touch only when told. It is **this project's persistent memory**, and using it is part of every task — across **both discussion and code**. Whenever you talk through a requirement or design with the user, or implement, refactor, or debug, the brain is in the loop: you read from it to recall what was already decided, and you write to it the moment something durable emerges. Treat it the way an agent with a built-in memory would — proactively, not on request.
 
-The working rhythm:
+Maintain the brain as part of normal coding work — not as a separate task. Working rhythm while discussing or implementing features:
 
-- **At the start — load the brain.** When you pick up a task or a requirement lands, first read the brain: `brain list-pages` for the index, then `brain read-page <id>` / `brain read-root <slug>` to pull in the relevant existing decisions, constraints, and context. Don't design or code against a blank slate when the brain already holds the answer.
-- **In flight — capture as it surfaces, immediately.** The moment a decision, requirement, constraint, or durable insight appears — in conversation or in code — write it back through the `brain` CLI right then (a `decision` page, or a root-page update for positioning / architecture / stack / roadmap). Proactively and immediately; don't batch it to "later" and don't wait to be asked.
-- **When you overturn a past conclusion** — append a `kind: reversal` entry to the relevant page's timeline (via `brain append-timeline`, or `brain archive-page --reversal-summary` when retiring the page), so the chain of evidence shows the change of mind.
+- **Start of a task — load the brain.** When you pick up a task or a requirement lands, first read the brain: `brain list-pages` for the index, then `brain read-page <id>` / `brain read-root <slug>` for relevant decisions, constraints, and context. Prefer a narrow read over scanning everything. Don't design or code against a blank slate when the brain already holds the answer.
+- **When a decision, requirement, constraint, or durable insight settles** (in chat or while coding) — capture it immediately via the `brain` CLI (a `decision` page, or a root-page update for positioning / architecture / stack / roadmap). Do not wait to be asked and do not batch it for later.
+- **Pure implementation with no new decision** — do not write to the brain.
+- **When you overturn a past conclusion** — append a `kind: reversal` entry to the relevant page's timeline (via `brain append-timeline`, or `brain archive-page --reversal-summary` when retiring the page), or `update-truth` with the new understanding, so the chain of evidence shows the change of mind.
 
 The test for what is worth keeping: **will this still matter in six months, and is it hard to reconstruct from the code itself?** Yes → write it into the brain; no → leave it in the code and the commit message. Pure implementation details, and anything readable straight from the code and git history, do not belong in the brain.
 
@@ -122,7 +123,7 @@ Use `[[page-id]]` only when the identifier truly is the id of a brain page (it a
 
 Skills are reusable operating manuals for working with `brain/`. They are not knowledge deliverables; they are "how to do it" rulebooks for the AI, installed into each agent's global skills directory (so Claude Code, Codex, and others share them). This standard ships four:
 
-- **brain-setup** — ensure `BRAIN.md` is in the project root; resolve the brain data location with `brain brain-dir` (brainRoot-aware) and scaffold the `brain/` skeleton there only if that location is empty — never a second local `./brain` when `brainRoot` redirects to an external directory. Then wire the chosen agents' config files via `brain wire` (see below), and optionally install a pre-commit hook.
+- **brain-setup** — ensure `BRAIN.md` is in the project root; resolve the brain data location with `brain brain-dir` (brainRoot-aware) and scaffold the `brain/` skeleton there only if that location is empty — never a second local `./brain` when `brainRoot` redirects to an external directory. Then **default-wire** `CLAUDE.md` + `AGENTS.md` via `brain wire` (or prefer the one-shot `brain init`), and optionally install a pre-commit hook.
 - **brain-bootstrap** — seed a freshly-scaffolded brain with real project knowledge: on an existing project, read the code / docs / `git log` to draft the six root pages and capture key decisions; on an empty project, interview the user. All writes go through the `brain` CLI. Run it after **brain-setup**.
 - **brain-page** — the operating manual for reading and writing pages + root pages; this is the bundle that carries the `brain` CLI. **Read it before creating or modifying any page.**
 - **brain-ingest** — the process for digesting a conversation / document / research result and writing it down through the `brain` CLI.
@@ -157,22 +158,27 @@ This standard grew out of a tool-call-based brain system. Here, **every read and
 | `set_page_tags` | `brain set-tags --id <id> --tags a,b,c` — rewrites the frontmatter tags, reindexes. |
 | `update_root_page` | `brain update-root <slug>` with the body on **stdin** — rewrites `brain/<slug>.md` wholesale, regenerates frontmatter, guarantees the canonical H1; root pages have no timeline. |
 | `reindex` / `lint-links` | `brain reindex` / `brain lint-links`. `lint-links` checks Page `compiled_truth` and root page bodies as current knowledge; Page timeline entries are append-only provenance and are not linted. |
-| wire an agent's config | `brain wire --agent <claude-code\|codex\|opencode\|cursor\|pi>` — writes the unified brain block into `./CLAUDE.md` / `./AGENTS.md` (see below). |
+| scaffold a project | `brain init` — ensures `BRAIN.md`, scaffolds empty brain data (brainRoot-aware), default-wires `CLAUDE.md` + `AGENTS.md`. |
+| wire an agent's config | `brain wire` (default) or `brain wire --agent <claude-code\|codex\|opencode\|cursor\|pi\|all>` — writes the unified brain block into `./CLAUDE.md` / `./AGENTS.md` (see below). |
 
 ---
 
-## Wiring agent-config files — `brain wire`
+## Wiring agent-config files — `brain wire` / `brain init`
 
-So that a coding agent picks up this contract automatically, the project's agent-config files point at `BRAIN.md`. This is done **deterministically by the CLI**, never by hand:
+So that a coding agent picks up this contract automatically, the project's agent-config files point at `BRAIN.md`. This is done **deterministically by the CLI**, never by hand. Prefer **`brain init`** for a new project (scaffold + wire in one step).
 
 ```
-brain wire --agent <claude-code|codex|opencode|cursor|pi>      # repeatable, or comma-separated: --agent claude-code,codex,opencode,cursor,pi
+brain init                                                    # BRAIN.md + brain skeleton (if empty) + default wire
+brain wire                                                    # default: CLAUDE.md + AGENTS.md
+brain wire --agent all                                        # same as default
+brain wire --agent claude-code,codex,opencode,cursor,pi       # explicit subset / full set
 ```
 
+- Default (no `--agent`, or `--agent all`) wires **both** `./CLAUDE.md` and `./AGENTS.md`.
 - `claude-code → ./CLAUDE.md`, `codex / opencode / cursor / pi → ./AGENTS.md` (written in the project root).
-- It writes one **unified, neutral, self-contained brain block**, wrapped in `<!-- BEGIN brain.md -->` … `<!-- END brain.md -->`: it frames `brain/` as the project's memory layer, tells the agent to read `./BRAIN.md` (this contract), gives the active-memory triggers (load brain context before any task or discussion; capture decisions / requirements / insights through the CLI the moment they surface), states the core rule (all reads/writes go through the `brain` CLI; never hand-edit a brain file), and notes the four brain skills are installed globally.
+- It writes one **unified, neutral, self-contained brain block**, wrapped in `<!-- BEGIN brain.md -->` … `<!-- END brain.md -->`: it frames `brain/` as the project's memory layer, tells the agent to read `./BRAIN.md` (this contract), states the **session-companion** rules (load brain at task start; capture decisions/constraints when they settle during coding; skip pure implementation; reverse/update when overturning; all via the `brain` CLI; never hand-edit), and notes the four brain skills are installed globally.
 - Both files get the **same** block body. The only difference: `CLAUDE.md` also carries an `@import ./BRAIN.md` line. **`@import` is Claude Code-specific** — the other agents (which read `AGENTS.md`) do not understand it, so `AGENTS.md` relies on the plain "read `./BRAIN.md`" instruction instead.
-- **Idempotent** via the markers: no file → created; file without markers → block appended; existing marked block → replaced in place (re-running upgrades, never duplicates).
+- **Idempotent** via the markers: no file → created; file without markers → block **appended** (user content preserved); existing marked block → replaced in place (re-running upgrades, never duplicates). Never whole-file overwrite of user content outside the markers.
 
 ---
 
