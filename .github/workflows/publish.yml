@@ -1,0 +1,60 @@
+name: Publish
+
+# Controlled release: create a matching version tag, e.g.
+#   npm version patch   # or edit package.json, then:
+#   git push origin main --follow-tags
+# or: git tag v0.1.0 && git push origin v0.1.0
+#
+# Requires repo secret NPM_TOKEN (npm automation / granular access token
+# with publish permission for the package).
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "publish" to publish package.json version to npm'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write # npm provenance
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    # Tags always publish; manual runs only from main after typing "publish".
+    if: >
+      github.event_name == 'push' ||
+      (github.event_name == 'workflow_dispatch' &&
+       inputs.confirm == 'publish' &&
+       github.ref == 'refs/heads/main')
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      - name: Run tests
+        run: npm test
+
+      - name: Verify tag matches package.json version
+        if: github.event_name == 'push'
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME#v}"
+          PKG="$(node -p "require('./package.json').version")"
+          if [ "$TAG" != "$PKG" ]; then
+            echo "Tag v$TAG does not match package.json version $PKG"
+            exit 1
+          fi
+          echo "Publishing brain-md@$PKG (tag v$TAG)"
+
+      - name: Publish to npm
+        run: npm publish --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
