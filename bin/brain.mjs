@@ -10,7 +10,7 @@
 //                                  or symlinked bundle stays self-contained);
 //                                  this entry point just delegates to it.
 //
-// `npx brain-md setup` also lands here: with a single bin in the package,
+// `npx @mindmux/brain-md setup` also lands here: with a single bin in the package,
 // npx runs it regardless of the bin's name.
 
 import { dirname, join } from "node:path";
@@ -70,7 +70,7 @@ if (sub === "setup" || sub === "uninstall") {
   });
 } else {
   // Surface toolchain commands when users land on top-level help after
-  // `npm i -g brain-md` (the skill-bundle CLI only knows project commands).
+  // `npm i -g @mindmux/brain-md` (the skill-bundle CLI only knows project commands).
   if (sub === undefined || sub === "help" || sub === "-h" || sub === "--help") {
     process.stdout.write(`${TOOLCHAIN_BLURB}\n`);
   }

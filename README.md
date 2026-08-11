@@ -57,7 +57,7 @@ and anything readable straight from the code and git history stay where they are
 **1. Install the tools once (global) — no clone required.** This puts `brain` on your `PATH` and copies skills into every detected agent (`~/.claude/skills`, …):
 
 ```bash
-npm install -g brain-md
+npm install -g @mindmux/brain-md
 brain setup -y
 # reverse: brain uninstall   # never touches any project's brain data
 ```
@@ -65,14 +65,14 @@ brain setup -y
 Prefer not to install globally? Use `npx` for **both** steps (npx does not leave `brain` on your `PATH`):
 
 ```bash
-npx brain-md setup -y
-npx brain-md init          # same as step 2 — not bare `brain init`
-# reverse: npx brain-md uninstall
+npx @mindmux/brain-md setup -y
+npx @mindmux/brain-md init          # same as step 2 — not bare `brain init`
+# reverse: npx @mindmux/brain-md uninstall
 ```
 
 From a git checkout of this repo you can still run `./setup` (same installer; use `--symlink` while developing the toolkit).
 
-**2. Initialize a project** (from the project root; requires the global install from step 1, or use `npx brain-md init` above):
+**2. Initialize a project** (from the project root; requires the global install from step 1, or use `npx @mindmux/brain-md init` above):
 
 ```bash
 brain init

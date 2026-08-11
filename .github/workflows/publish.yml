@@ -52,9 +52,10 @@ jobs:
             echo "Tag v$TAG does not match package.json version $PKG"
             exit 1
           fi
-          echo "Publishing brain-md@$PKG (tag v$TAG)"
+          echo "Publishing @mindmux/brain-md@$PKG (tag v$TAG)"
 
       - name: Publish to npm
+        # Scoped package; access public is also set in package.json publishConfig.
         run: npm publish --access public --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
