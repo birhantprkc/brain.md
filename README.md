@@ -54,21 +54,29 @@ and anything readable straight from the code and git history stay where they are
 
 ## Quick start
 
-**1. Install the tools once (global) — no clone required. One command, `brain`:**
+**1. Install the tools once (global) — no clone required.** This puts `brain` on your `PATH` and copies skills into every detected agent (`~/.claude/skills`, …):
 
 ```bash
-npx brain-md setup -y     # copies skills into every detected agent (~/.claude/skills, …)
-# or: npm install -g brain-md && brain setup
-npx brain-md uninstall    # reverses it cleanly; never touches any project's brain data
+npm install -g brain-md
+brain setup -y
+# reverse: brain uninstall   # never touches any project's brain data
+```
+
+Prefer not to install globally? Use `npx` for **both** steps (npx does not leave `brain` on your `PATH`):
+
+```bash
+npx brain-md setup -y
+npx brain-md init          # same as step 2 — not bare `brain init`
+# reverse: npx brain-md uninstall
 ```
 
 From a git checkout of this repo you can still run `./setup` (same installer; use `--symlink` while developing the toolkit).
 
-**2. Initialize a project** (from the project root):
+**2. Initialize a project** (from the project root; requires the global install from step 1, or use `npx brain-md init` above):
 
 ```bash
-brain init                # after npm install -g brain-md
-# or: node path/to/skills/brain-page/bin/brain.mjs init
+brain init
+# or, after setup only (no global bin): node ~/.claude/skills/brain-page/bin/brain.mjs init
 ```
 
 This ensures `BRAIN.md`, scaffolds empty brain data (brainRoot-aware), and **default-wires**
