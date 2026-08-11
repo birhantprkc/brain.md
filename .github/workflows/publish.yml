@@ -5,8 +5,12 @@ name: Publish
 #   git push origin main --follow-tags
 # or: git tag v0.1.0 && git push origin v0.1.0
 #
-# Requires repo secret NPM_TOKEN (npm automation / granular access token
-# with publish permission for the package).
+# Auth (either works):
+#   1) Repo secret NPM_TOKEN — Automation token, or Granular with
+#      packages:read/write + "Bypass two-factor authentication"
+#      (scope must cover @mindmux). Classic tokens fail publish when 2FA is on.
+#   2) npm Trusted Publisher (OIDC) for this repo + this workflow file —
+#      then NODE_AUTH_TOKEN is optional; needs npm >= 11.5.1.
 on:
   push:
     tags:
@@ -20,7 +24,7 @@ on:
 
 permissions:
   contents: read
-  id-token: write # npm provenance
+  id-token: write # npm provenance + trusted publisher OIDC
 
 jobs:
   publish:
@@ -38,6 +42,11 @@ jobs:
         with:
           node-version: 22
           registry-url: https://registry.npmjs.org
+          scope: "@mindmux"
+
+      # Trusted Publisher / modern auth paths need a recent npm.
+      - name: Ensure modern npm
+        run: npm install -g npm@latest
 
       - name: Run tests
         run: npm test
@@ -54,8 +63,37 @@ jobs:
           fi
           echo "Publishing @mindmux/brain-md@$PKG (tag v$TAG)"
 
-      - name: Publish to npm
-        # Scoped package; access public is also set in package.json publishConfig.
-        run: npm publish --access public --provenance
+      # Diagnose auth without leaking the secret value.
+      - name: Check npm auth
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
+            echo "NPM_TOKEN secret is empty — publish will rely on OIDC Trusted Publisher only"
+          else
+            # Length + shape only; never print the token.
+            echo "NPM_TOKEN length: ${#NODE_AUTH_TOKEN}"
+            case "$NODE_AUTH_TOKEN" in
+              npm_*) echo "NPM_TOKEN prefix: npm_ (ok for granular/automation)" ;;
+              *) echo "NPM_TOKEN prefix: unexpected (not npm_*)" ;;
+            esac
+            if [[ "$NODE_AUTH_TOKEN" == *$'\n'* ]] || [[ "$NODE_AUTH_TOKEN" == *$'\r'* ]]; then
+              echo "NPM_TOKEN contains a newline/CR — re-set the secret without trailing newline"
+              exit 1
+            fi
+          fi
+          # Confirm registry sees an identity when a token is provided.
+          if [ -n "${NODE_AUTH_TOKEN:-}" ]; then
+            if npm whoami --registry=https://registry.npmjs.org; then
+              echo "npm whoami succeeded"
+            else
+              echo "npm whoami failed — registry rejected NPM_TOKEN"
+              exit 1
+            fi
+          fi
+
+      - name: Publish to npm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --access public --provenance
