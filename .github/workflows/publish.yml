@@ -1,16 +1,22 @@
 name: Publish
 
-# Controlled release: create a matching version tag, e.g.
-#   npm version patch   # or edit package.json, then:
-#   git push origin main --follow-tags
-# or: git tag v0.1.0 && git push origin v0.1.0
+# Controlled release via npm Trusted Publisher (OIDC) — no long-lived publish token.
 #
-# Auth (either works):
-#   1) Repo secret NPM_TOKEN — Automation token, or Granular with
-#      packages:read/write + "Bypass two-factor authentication"
-#      (scope must cover @mindmux). Classic tokens fail publish when 2FA is on.
-#   2) npm Trusted Publisher (OIDC) for this repo + this workflow file —
-#      then NODE_AUTH_TOKEN is optional; needs npm >= 11.5.1.
+# One-time setup on https://www.npmjs.com (package or org @mindmux):
+#   Trusted Publisher → GitHub Actions
+#     Organization: mindmuxai
+#     Repository:   brain.md
+#     Workflow:     publish.yml
+#     Environment:  (leave empty unless you use GitHub Environments)
+#
+# If the package does not exist yet, create it once (local interactive 2FA):
+#   npm login && npm publish --access public
+# then attach the Trusted Publisher above; later releases use this workflow.
+#
+# Trigger:
+#   git tag vX.Y.Z && git push origin vX.Y.Z
+#   # tag must match package.json "version"
+# or: Actions → Publish → Run workflow on main (confirm = publish)
 on:
   push:
     tags:
@@ -24,7 +30,7 @@ on:
 
 permissions:
   contents: read
-  id-token: write # npm provenance + trusted publisher OIDC
+  id-token: write # required for OIDC trusted publisher + provenance
 
 jobs:
   publish:
@@ -43,10 +49,12 @@ jobs:
           node-version: 22
           registry-url: https://registry.npmjs.org
           scope: "@mindmux"
+          # Do not cache npm: a poisoned cache can steal OIDC credentials.
+          package-manager-cache: false
 
-      # Trusted Publisher / modern auth paths need a recent npm.
+      # Trusted Publisher needs npm >= 11.5.1
       - name: Ensure modern npm
-        run: npm install -g npm@latest
+        run: npm install -g npm@latest && npm --version
 
       - name: Run tests
         run: npm test
@@ -63,37 +71,8 @@ jobs:
           fi
           echo "Publishing @mindmux/brain-md@$PKG (tag v$TAG)"
 
-      # Diagnose auth without leaking the secret value.
-      - name: Check npm auth
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          set -euo pipefail
-          if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
-            echo "NPM_TOKEN secret is empty — publish will rely on OIDC Trusted Publisher only"
-          else
-            # Length + shape only; never print the token.
-            echo "NPM_TOKEN length: ${#NODE_AUTH_TOKEN}"
-            case "$NODE_AUTH_TOKEN" in
-              npm_*) echo "NPM_TOKEN prefix: npm_ (ok for granular/automation)" ;;
-              *) echo "NPM_TOKEN prefix: unexpected (not npm_*)" ;;
-            esac
-            if [[ "$NODE_AUTH_TOKEN" == *$'\n'* ]] || [[ "$NODE_AUTH_TOKEN" == *$'\r'* ]]; then
-              echo "NPM_TOKEN contains a newline/CR — re-set the secret without trailing newline"
-              exit 1
-            fi
-          fi
-          # Confirm registry sees an identity when a token is provided.
-          if [ -n "${NODE_AUTH_TOKEN:-}" ]; then
-            if npm whoami --registry=https://registry.npmjs.org; then
-              echo "npm whoami succeeded"
-            else
-              echo "npm whoami failed — registry rejected NPM_TOKEN"
-              exit 1
-            fi
-          fi
-
+      # Intentionally no NODE_AUTH_TOKEN: a read-capable token that cannot
+      # publish would force the token auth path and 403 under 2FA policy.
+      # Auth is OIDC Trusted Publisher only.
       - name: Publish to npm
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm publish --access public --provenance
