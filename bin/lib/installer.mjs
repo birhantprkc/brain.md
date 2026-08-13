@@ -320,7 +320,7 @@ export async function runSetup({ assumeYes = false, symlink = false, project = f
   writeManifest(manifest, [...readManifest(manifest), ...records]);
   console.log(`\nsetup: done. Manifest: ${manifest}`);
   console.log("setup: next, in a project root run: brain init");
-  console.log("setup: (optional) brain-setup skill adds a pre-commit hook on top of init.");
+  console.log("setup: (optional) pre-commit via brain-setup skill; Claude Code SessionStart via brain install-hooks.");
 }
 
 export async function runUninstall({ assumeYes = false, keepState = false, project = false } = {}) {

@@ -28,9 +28,11 @@
 //   wire            [--agent <claude-code|codex|opencode|cursor|pi|all>]
 //                   (default: wire CLAUDE.md + AGENTS.md)
 //   init            [--no-wire] [--agent …]   scaffold BRAIN.md + brain/ + default wire
+//   install-hooks   (opt-in Claude Code SessionStart hook, project-local .claude/settings.json)
+//   uninstall-hooks (remove that SessionStart hook)
 //   reindex | lint-links
 
-import { existsSync, readFileSync, readdirSync, mkdirSync, cpSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, mkdirSync, cpSync, chmodSync, rmSync, rmdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -590,6 +592,162 @@ function cmdInit(rest) {
   console.log(
     "brain: init done. Seed real knowledge next (brain-bootstrap skill), then maintain the brain while coding.",
   );
+  console.log(
+    "brain: optional: brain install-hooks — Claude Code SessionStart snapshot (project-local .claude/settings.json).",
+  );
+}
+
+// ---- Claude Code SessionStart hook (opt-in, project-local only) -------------
+//
+// Slice 1 of the lifecycle-hook layer: inject a compact `brain list-pages`
+// snapshot at session start. Never writes ~/.claude/settings.json. The hook
+// script only shells out to this CLI (brain-dir / list-pages); install just
+// copies the script and merges a SessionStart command into .claude/settings.json.
+
+const SESSION_HOOK_FILE = "brain-session-start";
+const SESSION_HOOK_COMMAND = "${CLAUDE_PROJECT_DIR}/.claude/hooks/" + SESSION_HOOK_FILE;
+const SESSION_HOOK_SRC = join(SKILLS_ROOT, "brain-setup", "hooks", "session-start");
+
+function sessionHookDest() {
+  return join(ROOT, ".claude", "hooks", SESSION_HOOK_FILE);
+}
+
+function claudeSettingsPath() {
+  return join(ROOT, ".claude", "settings.json");
+}
+
+function isOurSessionHookCommand(command) {
+  if (typeof command !== "string") return false;
+  return command.includes(`.claude/hooks/${SESSION_HOOK_FILE}`) || /(^|[\\/])brain-session-start$/.test(command);
+}
+
+function ourSessionStartGroup() {
+  return { hooks: [{ type: "command", command: SESSION_HOOK_COMMAND }] };
+}
+
+function sessionStartHasOurHook(groups) {
+  if (!Array.isArray(groups)) return false;
+  for (const group of groups) {
+    const hooks = group && Array.isArray(group.hooks) ? group.hooks : [];
+    for (const h of hooks) {
+      if (h && isOurSessionHookCommand(h.command)) return true;
+    }
+  }
+  return false;
+}
+
+function removeOurSessionHook(groups) {
+  return groups
+    .map((group) => {
+      if (!group || typeof group !== "object" || !Array.isArray(group.hooks)) return group;
+      const hooks = group.hooks.filter((h) => !(h && isOurSessionHookCommand(h.command)));
+      if (hooks.length === 0) return null;
+      if (hooks.length === group.hooks.length) return group;
+      return { ...group, hooks };
+    })
+    .filter(Boolean);
+}
+
+function readClaudeSettings(path) {
+  if (!existsSync(path)) return { missing: true, value: {} };
+  const raw = readFileSync(path, "utf8");
+  if (!raw.trim()) return { missing: false, value: {} };
+  let value;
+  try {
+    value = JSON.parse(raw);
+  } catch {
+    fail(".claude/settings.json is not valid JSON — repair it and re-run");
+  }
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    fail(".claude/settings.json must be a JSON object");
+  }
+  return { missing: false, value };
+}
+
+function writeClaudeSettings(path, value) {
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileAtomic(path, `${JSON.stringify(value, null, 2)}\n`);
+}
+
+function pruneEmptyClaudeHooksDir() {
+  const hooksDir = join(ROOT, ".claude", "hooks");
+  if (!existsSync(hooksDir)) return;
+  try {
+    if (readdirSync(hooksDir).length === 0) rmdirSync(hooksDir);
+  } catch {
+    // leave the dir if it isn't empty or isn't ours to remove
+  }
+}
+
+function cmdInstallHooks() {
+  if (!existsSync(SESSION_HOOK_SRC)) {
+    fail(
+      `install-hooks cannot find ${SESSION_HOOK_SRC} — is the brain-setup skill installed next to brain-page?`,
+    );
+  }
+
+  const settingsFile = claudeSettingsPath();
+  const { value } = readClaudeSettings(settingsFile);
+  if (value.hooks !== undefined && (value.hooks === null || typeof value.hooks !== "object" || Array.isArray(value.hooks))) {
+    fail(".claude/settings.json hooks must be an object");
+  }
+  const hooks = value.hooks && typeof value.hooks === "object" ? { ...value.hooks } : {};
+  if (hooks.SessionStart !== undefined && !Array.isArray(hooks.SessionStart)) {
+    fail(".claude/settings.json hooks.SessionStart must be an array");
+  }
+  const groups = Array.isArray(hooks.SessionStart) ? [...hooks.SessionStart] : [];
+  if (!sessionStartHasOurHook(groups)) groups.push(ourSessionStartGroup());
+  hooks.SessionStart = groups;
+  value.hooks = hooks;
+
+  const dest = sessionHookDest();
+  mkdirSync(dirname(dest), { recursive: true });
+  cpSync(SESSION_HOOK_SRC, dest);
+  chmodSync(dest, 0o755);
+  writeClaudeSettings(settingsFile, value);
+  console.log("brain: installed Claude Code SessionStart hook in .claude/settings.json (project-local)");
+}
+
+function cmdUninstallHooks() {
+  const dest = sessionHookDest();
+  const settingsFile = claudeSettingsPath();
+  const { missing, value } = readClaudeSettings(settingsFile);
+  let changed = false;
+
+  if (!missing) {
+    if (value.hooks !== undefined && (value.hooks === null || typeof value.hooks !== "object" || Array.isArray(value.hooks))) {
+      fail(".claude/settings.json hooks must be an object");
+    }
+    if (value.hooks && value.hooks.SessionStart !== undefined && !Array.isArray(value.hooks.SessionStart)) {
+      fail(".claude/settings.json hooks.SessionStart must be an array");
+    }
+    if (value.hooks && Array.isArray(value.hooks.SessionStart) && sessionStartHasOurHook(value.hooks.SessionStart)) {
+      const nextGroups = removeOurSessionHook(value.hooks.SessionStart);
+      if (nextGroups.length === 0) delete value.hooks.SessionStart;
+      else value.hooks.SessionStart = nextGroups;
+      changed = true;
+      if (Object.keys(value.hooks).length === 0) {
+        delete value.hooks;
+      }
+    }
+    if (changed) {
+      if (Object.keys(value).length === 0) rmSync(settingsFile, { force: true });
+      else writeClaudeSettings(settingsFile, value);
+    }
+  }
+
+  let removedScript = false;
+  if (existsSync(dest)) {
+    rmSync(dest, { force: true });
+    removedScript = true;
+  }
+  pruneEmptyClaudeHooksDir();
+
+  if (!changed && !removedScript) {
+    console.log("brain: Claude Code SessionStart hook not installed (nothing to do)");
+    return;
+  }
+  console.log("brain: removed Claude Code SessionStart hook from .claude/settings.json");
 }
 
 // ---- dispatch ---------------------------------------------------------------
@@ -618,6 +776,8 @@ Writes (correct-by-construction):
 
 Project setup:
   init            [--no-wire] [--agent …]   ensure BRAIN.md, scaffold empty brain, default-wire CLAUDE.md + AGENTS.md
+  install-hooks   opt-in Claude Code SessionStart hook (project-local .claude/settings.json only)
+  uninstall-hooks remove that SessionStart hook (leaves other .claude settings intact)
 
 Wiring (deterministic agent-config):
   wire            [--agent <claude-code|codex|opencode|cursor|pi|all>]
@@ -651,6 +811,8 @@ async function main() {
     case "update-root": return cmdUpdateRoot(positional, flags);
     case "init": return cmdInit(rest);
     case "wire": return cmdWire(rest);
+    case "install-hooks": return cmdInstallHooks();
+    case "uninstall-hooks": return cmdUninstallHooks();
     case "reindex": return cmdReindex();
     case "lint-links": return cmdLintLinks();
     case "setup":

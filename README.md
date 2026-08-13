@@ -82,7 +82,8 @@ brain init
 This ensures `BRAIN.md`, scaffolds empty brain data (brainRoot-aware), and **default-wires**
 `CLAUDE.md` + `AGENTS.md` (creates them if missing; if they already exist, only updates the
 marked brain block — never whole-file overwrite). Optionally use the **brain-setup** skill for
-the same flow plus a pre-commit hook.
+the same flow plus a pre-commit hook, or `brain install-hooks` for a project-local Claude Code
+SessionStart snapshot.
 
 **3. Seed real knowledge** — run the **brain-bootstrap** skill. On an existing project it reads
 the code, docs, and `git log` to draft the root pages and capture key decisions; on a near-empty
@@ -124,6 +125,8 @@ brain() { node skills/brain-page/bin/brain.mjs "$@"; }   # or use the global `br
 
 brain init                                   # BRAIN.md + skeleton + default wire CLAUDE.md / AGENTS.md
 brain wire                                   # same default wire (no --agent needed)
+brain install-hooks                          # opt-in Claude Code SessionStart snapshot (project-local)
+brain uninstall-hooks                        # remove that SessionStart hook
 brain brain-dir                              # where is the brain?
 brain list-pages                             # list pages
 brain read-page my-decision                  # read a page
@@ -155,7 +158,7 @@ The skills that drive it all:
 
 | skill | what it does |
 |---|---|
-| **brain-setup** | same scaffold/wire as `brain init`, plus an optional pre-commit hook — prefer `brain init` for day-to-day |
+| **brain-setup** | same scaffold/wire as `brain init`, plus optional pre-commit and Claude Code SessionStart hooks — prefer `brain init` for day-to-day |
 | **brain-bootstrap** | seed the brain from code / docs / `git log` — or interview you on a greenfield project |
 | **brain-page** | the operating manual for reading and writing pages + root pages (carries the `brain` CLI) |
 | **brain-ingest** | digest a conversation, document, or research result into the brain |

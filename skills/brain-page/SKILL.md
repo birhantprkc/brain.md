@@ -36,6 +36,8 @@ Define a shell function (do **not** use `BRAIN="node <bundle>/bin/brain.mjs"; $B
 brain() { node <bundle>/bin/brain.mjs "$@"; }
 brain init            # ensure BRAIN.md, scaffold empty brain, default-wire CLAUDE.md + AGENTS.md
 brain wire            # default wire both agent config files (optional --agent subset / all)
+brain install-hooks   # opt-in Claude Code SessionStart snapshot (project-local .claude/settings.json)
+brain uninstall-hooks # remove that SessionStart hook
 brain brain-dir       # print the resolved brain directory + its source (brainRoot / default)
 brain list-pages      # list every page: id / title / category / status
 brain read-page <id>  # print brain/pages/<id>.md
