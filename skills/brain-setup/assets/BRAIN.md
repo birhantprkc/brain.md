@@ -26,7 +26,7 @@ The test for what is worth keeping: **will this still matter in six months, and 
 
 And the access rule is constant: **read = the `brain` read subcommands, write = the `brain` write subcommands, never hand-edit a brain file.**
 
-> Note: Claude Code and Codex have no per-turn system prompt the way a memory-native runtime does, so "use the brain proactively" is enforced only by always-present instruction files like this one and the wired agent-config block — a prompt-level *soft* constraint, in the same family as "never hand-edit a brain file". A harder, hook-based mechanism is deferred to v0.2.
+> Note: Claude Code and Codex have no per-turn system prompt the way a memory-native runtime does, so "use the brain proactively" is enforced by always-present instruction files like this one and the wired agent-config block — a prompt-level *soft* constraint. An optional Claude Code `SessionStart` hook (project-local `.claude/settings.json` only, via `brain install-hooks`) injects a compact `brain list-pages` snapshot at session start. It shells out to this CLI, no-ops when the brain is not populated, and exits 0 on failure. Pre-turn injection and Stop-suggested writes are not part of this layer yet.
 
 ---
 
@@ -123,7 +123,7 @@ Use `[[page-id]]` only when the identifier truly is the id of a brain page (it a
 
 Skills are reusable operating manuals for working with `brain/`. They are not knowledge deliverables; they are "how to do it" rulebooks for the AI, installed into each agent's global skills directory (so Claude Code, Codex, and others share them). This standard ships four:
 
-- **brain-setup** — ensure `BRAIN.md` is in the project root; resolve the brain data location with `brain brain-dir` (brainRoot-aware) and scaffold the `brain/` skeleton there only if that location is empty — never a second local `./brain` when `brainRoot` redirects to an external directory. Then **default-wire** `CLAUDE.md` + `AGENTS.md` via `brain wire` (or prefer the one-shot `brain init`), and optionally install a pre-commit hook.
+- **brain-setup** — ensure `BRAIN.md` is in the project root; resolve the brain data location with `brain brain-dir` (brainRoot-aware) and scaffold the `brain/` skeleton there only if that location is empty — never a second local `./brain` when `brainRoot` redirects to an external directory. Then **default-wire** `CLAUDE.md` + `AGENTS.md` via `brain wire` (or prefer the one-shot `brain init`), and optionally install a pre-commit hook and a Claude Code SessionStart hook (`brain install-hooks`).
 - **brain-bootstrap** — seed a freshly-scaffolded brain with real project knowledge: on an existing project, read the code / docs / `git log` to draft the six root pages and capture key decisions; on an empty project, interview the user. All writes go through the `brain` CLI. Run it after **brain-setup**.
 - **brain-page** — the operating manual for reading and writing pages + root pages; this is the bundle that carries the `brain` CLI. **Read it before creating or modifying any page.**
 - **brain-ingest** — the process for digesting a conversation / document / research result and writing it down through the `brain` CLI.
@@ -160,6 +160,7 @@ This standard grew out of a tool-call-based brain system. Here, **every read and
 | `reindex` / `lint-links` | `brain reindex` / `brain lint-links`. `lint-links` checks Page `compiled_truth` and root page bodies as current knowledge; Page timeline entries are append-only provenance and are not linted. |
 | scaffold a project | `brain init` — ensures `BRAIN.md`, scaffolds empty brain data (brainRoot-aware), default-wires `CLAUDE.md` + `AGENTS.md`. |
 | wire an agent's config | `brain wire` (default) or `brain wire --agent <claude-code\|codex\|opencode\|cursor\|pi\|all>` — writes the unified brain block into `./CLAUDE.md` / `./AGENTS.md` (see below). |
+| optional Claude Code SessionStart hook | `brain install-hooks` / `brain uninstall-hooks` — project-local `.claude/settings.json` only (never `~/.claude/settings.json`). Injects a compact `brain list-pages` snapshot at session start; the hook only shells out to this CLI. |
 
 ---
 
@@ -186,7 +187,7 @@ brain wire --agent claude-code,codex,opencode,cursor,pi       # explicit subset 
 
 There is deliberately **no `validate` command**. Because every write goes through the CLI, the two things a validator used to guard are now structurally impossible: frontmatter is always CLI-generated so it can't be mis-shaped, and `update-truth` rewrites compiled_truth and appends its timeline entry in one atomic write, so a "changed understanding with no trace" can never occur. The guarantee comes from *only ever using the CLI*.
 
-That is also why the guardrail above is absolute: **never hand-edit a brain file.** Nothing at the file layer can stop a manual edit, and there is no validator to catch one afterwards — a hand edit silently breaks invariants that the rest of the system trusts. `brain reindex` (rebuilds `index.md`) and `brain lint-links` (checks every `[[page-id]]` resolves) remain as optional hygiene, and `brain-setup` can install a pre-commit hook that runs them; neither is load-bearing.
+That is also why the guardrail above is absolute: **never hand-edit a brain file.** Nothing at the file layer can stop a manual edit, and there is no validator to catch one afterwards — a hand edit silently breaks invariants that the rest of the system trusts. `brain reindex` (rebuilds `index.md`) and `brain lint-links` (checks every `[[page-id]]` resolves) remain as optional hygiene, and `brain-setup` can install a pre-commit hook that runs them; neither is load-bearing. The optional SessionStart hook only *reads* via the CLI (`list-pages`) to inject context — it never writes the brain.
 
 ---
 

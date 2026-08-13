@@ -1,6 +1,6 @@
 ---
 name: brain-setup
-description: Bootstrap the Open Project Brain Standard into the current project — prefer `brain init` (ensure BRAIN.md, scaffold empty brain brainRoot-aware, default-wire CLAUDE.md + AGENTS.md). Optionally install a pre-commit hook.
+description: Bootstrap the Open Project Brain Standard into the current project — prefer `brain init` (ensure BRAIN.md, scaffold empty brain brainRoot-aware, default-wire CLAUDE.md + AGENTS.md). Optionally install a pre-commit hook and a Claude Code SessionStart hook.
 ---
 
 # brain-setup
@@ -13,7 +13,7 @@ This skill bootstraps a project into the **Open Project Brain Standard**: it dro
 node <brain-page-bundle>/bin/brain.mjs init
 ```
 
-That command ensures `BRAIN.md`, scaffolds empty brain data (brainRoot-aware), and **default-wires** `CLAUDE.md` + `AGENTS.md` (create if missing; if present, only update/append the marked brain block — never whole-file overwrite). Use the steps below when you need the optional pre-commit hook or are explaining the flow.
+That command ensures `BRAIN.md`, scaffolds empty brain data (brainRoot-aware), and **default-wires** `CLAUDE.md` + `AGENTS.md` (create if missing; if present, only update/append the marked brain block — never whole-file overwrite). Use the steps below when you need the optional pre-commit hook, the optional Claude Code SessionStart hook, or are explaining the flow.
 
 > **NEVER hand-edit any file under the brain directory. All reads and writes MUST go through the `brain` CLI. Manual edits are unsupported and illegitimate.** This scaffold creates the brain once; from then on every read and write is a `brain` subcommand. There is no validator and nothing at the file layer can catch a bad manual edit, so a hand edit silently breaks the brain's invariants.
 
@@ -46,7 +46,7 @@ node <brain-page-bundle>/bin/brain.mjs brain-dir
 
 Branch on the resolved state:
 
-- **`populated: true` → the brain already exists. Do NOT scaffold.** Tell the user the brain lives at `<resolved dir>`. If `source: brainRoot`, make it explicit: *"this project's brain is redirected to an external directory (`<resolved dir>`) and is managed there — leaving it untouched."* Then continue to step 3 (wire) and step 4 (optional hook). Never lay down a local `./brain` in this case.
+- **`populated: true` → the brain already exists. Do NOT scaffold.** Tell the user the brain lives at `<resolved dir>`. If `source: brainRoot`, make it explicit: *"this project's brain is redirected to an external directory (`<resolved dir>`) and is managed there — leaving it untouched."* Then continue to step 3 (wire) and the optional hooks (steps 4–5). Never lay down a local `./brain` in this case.
 
 - **`populated: false` → scaffold the skeleton into the resolved directory** (the `brainRoot` target when redirected, otherwise `./brain`). Copy `assets/brain/` → `<resolved dir>/` — this brings the six root page templates (`background` / `architecture` / `flow` / `mindmap` / `stack` / `roadmap`), a generated `index.md`, and an empty `pages/` directory. Copy each destination file **only if it does not already exist** (never overwrite). **Never create a second local `./brain` when `source: brainRoot`** — always scaffold at the resolved path. After copying, run `reindex` so the index reflects the present pages:
 
@@ -85,6 +85,20 @@ Offer to install the local index + link backstop (no CI required). Only if the p
 - If a `.git/hooks/pre-commit` already exists, do **not** overwrite it — tell the user and show them the hook contents so they can merge it manually.
 
 The hook runs `reindex → lint-links` on every commit and folds any index changes back in. (There is deliberately no validator — correctness is guaranteed by the CLI being the only way to write.)
+
+### 5. Optionally install a Claude Code SessionStart hook
+
+Offer a project-local SessionStart hook so Claude Code sessions start with a compact `brain list-pages` snapshot. **Never** write `~/.claude/settings.json` — a global hook would fire in projects that have no brain. Do **not** hand-edit `.claude/settings.json` for this; the CLI merge is the installer.
+
+Only if the user agrees:
+
+```
+node <brain-page-bundle>/bin/brain.mjs install-hooks
+```
+
+Reverse with `… uninstall-hooks`. Both are **idempotent**: install copies `hooks/session-start` → `.claude/hooks/brain-session-start` and merges a `SessionStart` command into `.claude/settings.json` without clobbering other settings or duplicating the command; uninstall removes only that command and the copied script.
+
+The hook itself only shells out to `brain brain-dir` and `brain list-pages`. It no-ops when `populated:` is not `true`, and any failure exits 0 with no output (convenience layer, not a hard dependency). It does not inject page bodies, and it does not install UserPromptSubmit / Stop hooks.
 
 ## After setup
 
