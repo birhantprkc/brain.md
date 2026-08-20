@@ -268,7 +268,7 @@ test("hook failure-opens: missing CLI, failing brain-dir, failing list-pages", (
   const rInstall = runBrain(project, ["install-hooks"]);
   assert.equal(rInstall.status, 0, rInstall.stderr || rInstall.stdout);
 
-  const missing = runHook(project, { brainCli: join(project, "no-such-cli.mjs"), path: "/usr/bin" });
+  const missing = runHook(project, { brainCli: join(project, "no-such-cli.mjs"), path: "/usr/bin:/bin" });
   assert.equal(missing.status, 0, missing.stderr);
   assert.equal((missing.stdout || "").trim(), "");
 

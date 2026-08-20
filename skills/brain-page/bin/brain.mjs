@@ -402,6 +402,8 @@ function brainWireBlock(agent) {
     "",
     "This project keeps a **Project Brain**: a persistent memory layer of its durable decisions, requirements, and constraints. Read `./BRAIN.md` for the full read/write contract.",
     "",
+    "The `brain` CLI is not guaranteed to be on `PATH`. From the project root, invoke it as `node <brain-page-skill-dir>/bin/brain.mjs <subcommand> [flags]`, resolving `<brain-page-skill-dir>` to the installed `brain-page` skill directory.",
+    "",
     "Maintain the brain as part of normal coding work — not as a separate task. While discussing or implementing features:",
     "- **Start of a task:** load relevant context with the `brain` CLI (`list-pages`, `read-page`, `read-root`). Prefer a narrow read over scanning everything.",
     "- **When a decision, requirement, constraint, or durable insight settles** (in chat or while coding): capture it immediately via the `brain` CLI. Do not wait to be asked and do not batch it for later.",
@@ -410,7 +412,7 @@ function brainWireBlock(agent) {
     "- Only store what will still matter in six months and is hard to reconstruct from the code alone.",
     "- All reads and writes go through the `brain` CLI — never hand-edit brain files.",
     "",
-    "The brain skills (`brain-setup`, `brain-page`, `brain-ingest`, `brain-bootstrap`) are installed in your global skills directory. Prefer `brain init` to scaffold a new project.",
+    "The brain skills (`brain-setup`, `brain-page`, `brain-ingest`, `brain-bootstrap`) are installed in your global skills directory. To scaffold a new project, run `node <brain-page-skill-dir>/bin/brain.mjs init` from its root.",
   ];
   if (agent === "claude-code") lines.splice(3, 0, "@import ./BRAIN.md");
   return [WIRE_BEGIN, ...lines, WIRE_END].join("\n");

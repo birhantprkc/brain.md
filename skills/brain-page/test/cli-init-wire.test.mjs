@@ -113,6 +113,16 @@ test("wire is idempotent: second run replaces the marked block only once", (t) =
   const agents = readFileSync(join(project, "AGENTS.md"), "utf8");
   assert.match(agents, /Keep PRs small/);
   assertCompanionBlock(agents);
+  assert.match(agents, /not guaranteed to be on `PATH`/);
+  assert.match(
+    agents,
+    /node <brain-page-skill-dir>\/bin\/brain\.mjs <subcommand> \[flags\]/,
+  );
+  assert.match(
+    agents,
+    /node <brain-page-skill-dir>\/bin\/brain\.mjs init/,
+  );
+  assert.doesNotMatch(agents, /Prefer `brain init`/);
 });
 
 test("wire fails loudly on a damaged block (one marker without its pair)", (t) => {
