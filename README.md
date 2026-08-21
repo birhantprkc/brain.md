@@ -5,7 +5,7 @@
 <h1 align="center">brain.md</h1>
 
 <p align="center">
-  <b>A persistent memory layer for your coding agents.</b><br>
+  <b>A persistent, file-based memory layer for your coding agents.</b><br>
   An open, agent-agnostic standard for capturing a project's durable knowledge as plain
   Markdown — read and written through one small CLI. It lives in your repo and travels across agents, machines, and models.
 </p>
